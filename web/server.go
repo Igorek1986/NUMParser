@@ -8,14 +8,17 @@ import (
 	"net/http"
 )
 
-var route *gin.Engine
-
 func setupRouter() *gin.Engine {
 	gin.DisableConsoleColor()
 	gin.SetMode(gin.ReleaseMode)
 
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
+
+	// Создаем группу для API Lampac
+	lampacGroup := r.Group("/api/lampac")
+	// Инициализируем роуты из lampac.go
+	InitLampacRoutes(lampacGroup)
 
 	r.Static("/css", "public/css")
 	r.Static("/img", "public/img")
@@ -32,7 +35,6 @@ func setupRouter() *gin.Engine {
 		c.Status(http.StatusBadRequest)
 		return
 	})
-
 	return r
 }
 
@@ -46,6 +48,7 @@ func SetStaticReleases() {
 }
 
 func Start(port string) {
+	route = gin.Default()
 	go func() {
 		route = setupRouter()
 		err := route.Run(":" + port)

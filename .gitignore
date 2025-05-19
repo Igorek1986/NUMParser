@@ -20,3 +20,8 @@ public/releases
 /rutor.ls
 /rutor_host.txt
 /build/
+.DS_Store
+db/numparser.db
+config.yml
+.idea/
+/numparser_macos

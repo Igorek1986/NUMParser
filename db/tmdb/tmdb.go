@@ -6,9 +6,10 @@ import (
 	"NUMParser/db/utils"
 	"encoding/json"
 	"errors"
-	bolt "go.etcd.io/bbolt"
 	"log"
 	"time"
+
+	bolt "go.etcd.io/bbolt"
 )
 
 func GetMovie(id int64) *models.Entity {
