@@ -1,9 +1,15 @@
 package web
 
 import (
+	"NUMParser/config"
 	"NUMParser/db/models"
 	"NUMParser/db/tmdb"
 	"NUMParser/utils"
+	"compress/gzip"
+	"encoding/json"
+	"log"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"sync"
@@ -39,6 +45,48 @@ var (
 	// cacheDuration = 5 * time.Minute
 )
 
+// SaveLampacData сохраняет данные в файл с префиксом lampac_
+func SaveLampacData(baseName string, data interface{}) {
+	// Формируем полное имя файла
+	filename := "lampac_" + baseName + ".json"
+	fullPath := filepath.Join(config.SaveReleasePath, filename)
+
+	// Создаем директорию
+	if err := os.MkdirAll(config.SaveReleasePath, 0777); err != nil {
+		log.Printf("Ошибка создания директории: %v", err)
+		return
+	}
+
+	// Создаем файл
+	file, err := os.Create(fullPath)
+	if err != nil {
+		log.Printf("Ошибка создания файла: %v", err)
+		return
+	}
+	//defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Ошибка при закрытии файла: %v", err)
+		}
+	}()
+	// Сжимаем в GZIP
+	gz := gzip.NewWriter(file)
+	//defer gz.Close()
+	defer func() {
+		if err := gz.Close(); err != nil {
+			log.Printf("Ошибка при закрытии gzip writer: %v", err)
+		}
+	}()
+
+	// Кодируем в JSON
+	if err := json.NewEncoder(gz).Encode(data); err != nil {
+		log.Printf("Ошибка кодирования JSON: %v", err)
+		return
+	}
+
+	log.Printf("Сохранено: %s", fullPath)
+}
+
 func UpdateMoviesCache() {
 
 	// Получаем все данные
@@ -48,7 +96,7 @@ func UpdateMoviesCache() {
 	// // Фильтруем данные по категориям
 	moviesRuNew, moviesRu := filterEntitiesByCategory(movieEntities, []string{models.CatMovie}, "ru", 2, 200, "hd")
 	moviesNew, movies := filterEntitiesByCategory(movieEntities, []string{models.CatMovie}, "notru", 2, 200, "hd")
-	tvShowRuNew, tvShowRu := filterEntitiesByCategory(tvEntities, []string{models.CatSeries}, "ru", 2, 200, "all")
+	tvShowRuNew, tvShowRu := filterEntitiesByCategory(tvEntities, []string{models.CatSeries}, "ru", 2, 0, "all")
 	tvShowNew, tvShow := filterEntitiesByCategory(tvEntities, []string{models.CatSeries}, "notru", 2, 200, "all")
 	cartoonMoviesNew, cartoonMovies := filterEntitiesByCategory(movieEntities, []string{models.CatCartoonMovie}, "all", 2, 200, "all")
 	cartoonSeriesNew, cartoonSeries := filterEntitiesByCategory(tvEntities, []string{models.CatCartoonSeries}, "all", 2, 200, "all")
@@ -143,6 +191,30 @@ func UpdateMoviesCache() {
 	allCartoonSeries := make([]*models.Entity, 0, len(cartoonSeriesNew)+len(cartoonSeries))
 	allCartoonSeries = append(allCartoonSeries, cartoonSeriesNew...)
 	allCartoonSeries = append(allCartoonSeries, cartoonSeries...)
+
+	//utils.FreeOSMemGC()
+
+	// Сохраняем всё в формате sendMoviesResponse
+	SaveLampacData("movies_ru_new", BuildMoviesResponse(moviesRuNew))
+	SaveLampacData("movies_ru", BuildMoviesResponse(moviesRu))
+	SaveLampacData("movies_new", BuildMoviesResponse(moviesNew))
+	SaveLampacData("movies", BuildMoviesResponse(movies))
+	SaveLampacData("tv_ru_new", BuildMoviesResponse(tvShowRuNew))
+	SaveLampacData("tv_ru", BuildMoviesResponse(tvShowRu))
+	SaveLampacData("tv_new", BuildMoviesResponse(tvShowNew))
+	SaveLampacData("tv", BuildMoviesResponse(tvShow))
+	SaveLampacData("cartoon_movies_new", BuildMoviesResponse(cartoonMoviesNew))
+	SaveLampacData("cartoon_movies", BuildMoviesResponse(cartoonMovies))
+	SaveLampacData("cartoon_series_new", BuildMoviesResponse(cartoonSeriesNew))
+	SaveLampacData("cartoon_series", BuildMoviesResponse(cartoonSeries))
+	// SaveLampacData("anime_new", BuildMoviesResponse(animeNew))
+	// SaveLampacData("anime", BuildMoviesResponse(anime))
+	SaveLampacData("movies_4k_new", BuildMoviesResponse(movies4kNew))
+	SaveLampacData("movies_4k", BuildMoviesResponse(movies4k))
+	SaveLampacData("all_tv_shows", BuildMoviesResponse(allTVShows))
+	SaveLampacData("all_tv_shows_ru", BuildMoviesResponse(allTVShowsRu))
+	SaveLampacData("all_cartoon_movies", BuildMoviesResponse(allCartoonMovies))
+	SaveLampacData("all_cartoon_series", BuildMoviesResponse(allCartoonSeries))
 
 	utils.FreeOSMemGC()
 
@@ -474,7 +546,45 @@ func getPageParam(c *gin.Context) int {
 	return page
 }
 
-// Вспомогательная функция для отправки ответа с фильмами
+func BuildMoviesResponse(movies []*models.Entity) []map[string]interface{} {
+	var results []map[string]interface{}
+
+	for _, m := range movies {
+		torr := tmdb.GetTorrentDetailsByTMDBID(m.ID)
+		qualityText := getQualityText(torr.VideoQuality)
+
+		releaseDate := m.ReleaseDate
+		if t, err := time.Parse("02.01.2006", m.ReleaseDate); err == nil {
+			releaseDate = t.Format("2006-01-02")
+		}
+
+		results = append(results, map[string]interface{}{
+			"backdrop_path":     m.BackdropPath,
+			"first_air_date":    m.FirstAirDate,
+			"last_air_date":     m.LastAirDate,
+			"id":                m.ID,
+			"name":              m.Title,
+			"number_of_seasons": m.NumberOfSeasons,
+			"seasons":           m.Seasons,
+			"original_name":     m.OriginalName,
+			"overview":          m.Overview,
+			"poster_path":       m.PosterPath,
+			"release_date":      releaseDate,
+			"still_path":        "",
+			"vote_average":      m.VoteAverage,
+			"vote_count":        m.VoteCount,
+			"source":            "Lampa",
+			"original_language": m.OriginalLanguage,
+			"video":             m.Video,
+			"update_date":       m.UpdateDate,
+			"release_quality":   qualityText,
+			"create_date":       torr.CreateDate,
+		})
+	}
+
+	return results
+}
+
 func sendMoviesResponse(c *gin.Context, movies []*models.Entity, page int) {
 	totalResults := len(movies)
 	totalPages := (totalResults + 19) / 20 // Округляем вверх
@@ -500,29 +610,25 @@ func sendMoviesResponse(c *gin.Context, movies []*models.Entity, page int) {
 		}
 
 		results = append(results, map[string]interface{}{
-			"backdrop_path": m.BackdropPath,
-			//"first_air_date":    first_air_date,
-			"id": m.ID,
-			//"name":              name,
+			"backdrop_path":     m.BackdropPath,
+			"first_air_date":    m.FirstAirDate,
+			"last_air_date":     m.LastAirDate,
+			"id":                m.ID,
 			"name":              m.Title,
 			"number_of_seasons": m.NumberOfSeasons,
 			"seasons":           m.Seasons,
-			//"original_name":     original_name,
-			"original_name": m.OriginalName,
-			"overview":      m.Overview,
-			"poster_path":   m.PosterPath,
-			"release_date":  releaseDate,
-			//"release_date":      m.ReleaseDate,
+			"original_name":     m.OriginalName,
+			"overview":          m.Overview,
+			"poster_path":       m.PosterPath,
+			"release_date":      releaseDate,
 			"still_path":        "",
 			"vote_average":      m.VoteAverage,
 			"vote_count":        m.VoteCount,
 			"source":            "Lampa",
 			"original_language": m.OriginalLanguage,
-			"media_type":        m.MediaType,
 			"video":             m.Video,
 			"update_date":       m.UpdateDate,
 			"release_quality":   qualityText,
-			"categories":        torr.Categories,
 			"create_date":       torr.CreateDate,
 		})
 	}
