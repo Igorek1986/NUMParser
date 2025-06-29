@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strconv"
 	"sync"
@@ -42,11 +43,20 @@ var (
 		allCartoonSeries []*models.Entity
 		lastUpdate       time.Time
 	}
-	// cacheDuration = 5 * time.Minute
 )
 
 // SaveLampacData сохраняет данные в файл с префиксом lampac_
 func SaveLampacData(baseName string, data interface{}) {
+
+	// Проверяем, что данные не пустые
+	val := reflect.ValueOf(data)
+	if val.Kind() == reflect.Slice && val.Len() == 0 {
+		log.Printf("Пропускаем сохранение пустого файла: %s", baseName)
+		return
+	} else {
+		log.Printf("Сохраняем файл: %s", baseName)
+	}
+
 	// Формируем полное имя файла
 	filename := "lampac_" + baseName + ".json"
 	fullPath := filepath.Join(config.SaveReleasePath, filename)
@@ -191,8 +201,6 @@ func UpdateMoviesCache() {
 	allCartoonSeries := make([]*models.Entity, 0, len(cartoonSeriesNew)+len(cartoonSeries))
 	allCartoonSeries = append(allCartoonSeries, cartoonSeriesNew...)
 	allCartoonSeries = append(allCartoonSeries, cartoonSeries...)
-
-	//utils.FreeOSMemGC()
 
 	// Сохраняем всё в формате sendMoviesResponse
 	SaveLampacData("movies_ru_new", BuildMoviesResponse(moviesRuNew))
@@ -367,7 +375,6 @@ func filterEntitiesByCategory(
 func InitLampacRoutes(r *gin.RouterGroup) {
 
 	UpdateMoviesCache()
-	// utils.FreeOSMemGC() // Освобождаем память после инициализаци
 
 	// Фильмы в высоком качестве новинки
 	r.GET("/4k_new", func(c *gin.Context) {
