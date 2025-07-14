@@ -587,6 +587,7 @@ func BuildMoviesResponse(movies []*models.Entity) []map[string]interface{} {
 			"update_date":       m.UpdateDate,
 			"release_quality":   qualityText,
 			"create_date":       torr.CreateDate,
+			"status":            m.Status,
 		})
 	}
 
@@ -639,6 +640,7 @@ func sendMoviesResponse(c *gin.Context, movies []*models.Entity, page int) {
 			"update_date":       m.UpdateDate,
 			"release_quality":   qualityText,
 			"create_date":       torr.CreateDate,
+			"status":            m.Status,
 		})
 	}
 
