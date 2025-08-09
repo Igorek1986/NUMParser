@@ -20,6 +20,7 @@ fi
 PROJECT_DIR="$USER_HOME/NUMParser"
 DEFAULT_PORT=38888
 NEED_RELOAD=false
+MIN_GO_VERSION="1.18"
 
 function error_exit {
     echo -e "${RED}Error: $1${NC}" >&2
@@ -55,52 +56,103 @@ function reload_shell {
 }
 
 function check_go_installed {
-    if command -v go >/dev/null 2>&1; then
-        echo -e "${GREEN}Go is already installed${NC}"
-        echo -e "  Version: $(go version)"
-        return 0
-    else
+    if ! command -v go >/dev/null 2>&1; then
         return 1
     fi
-}
 
-function install_go {
-    if check_go_installed; then
-        return
+    echo -e "${GREEN}Go is already installed${NC}"
+    local go_version_output=$(go version)
+    echo -e "  Version: $go_version_output"
+
+    # Extract version number
+    local go_version=$(echo "$go_version_output" | awk '{print $3}' | sed 's/go//')
+
+    # Compare versions
+    if [ "$(printf '%s\n' "$MIN_GO_VERSION" "$go_version" | sort -V | head -n1)" != "$MIN_GO_VERSION" ]; then
+        echo -e "${RED}Installed Go version ($go_version) is older than required ($MIN_GO_VERSION)${NC}"
+        return 2
     fi
 
-    echo -e "${YELLOW}Installing Go...${NC}"
-    GO_VERSION="1.24.4"
-    GO_ARCHIVE="go${GO_VERSION}.linux-amd64.tar.gz"
-    TEMP_DIR=$(mktemp -d)
+    return 0
+}
 
-    # Download Go
-    echo -e "${YELLOW}Downloading Go ${GO_VERSION}...${NC}"
-    curl -L "https://go.dev/dl/${GO_ARCHIVE}" -o "$TEMP_DIR/$GO_ARCHIVE" || error_exit "Failed to download Go"
+function remove_old_go {
+    echo -e "${YELLOW}Removing old Go installation...${NC}"
 
-    # Remove previous installation if exists
+    # Remove Go binary
+    sudo rm -f $(which go) 2>/dev/null
+
+    # Remove Go installation directory
     if [ -d "/usr/local/go" ]; then
-        echo -e "${YELLOW}Removing previous Go installation...${NC}"
         sudo rm -rf /usr/local/go
     fi
 
-    # Install Go
-    echo -e "${YELLOW}Installing Go to /usr/local...${NC}"
-    sudo tar -C /usr/local -xzf "$TEMP_DIR/$GO_ARCHIVE" || error_exit "Failed to install Go"
-
-    # Add Go to PATH
+    # Remove from PATH in shell config
     local SHELL_CONFIG=$(get_shell_config)
-    if ! grep -q "/usr/local/go/bin" "$SHELL_CONFIG"; then
-        echo "export PATH=\$PATH:/usr/local/go/bin" >> "$SHELL_CONFIG"
+    if grep -q "/usr/local/go/bin" "$SHELL_CONFIG"; then
+        sed -i '/\/usr\/local\/go\/bin/d' "$SHELL_CONFIG"
         NEED_RELOAD=true
     fi
 
-    # Cleanup
-    rm -rf "$TEMP_DIR"
+    # Remove from current PATH
+    export PATH=$(echo $PATH | sed -e 's|:/usr/local/go/bin||')
+}
 
-    # Source the configuration
-    export PATH=$PATH:/usr/local/go/bin
-    source "$SHELL_CONFIG" 2>/dev/null || true
+function install_go {
+    local install_needed=false
+
+    # Check if Go is installed and meets version requirements
+    check_go_installed
+    case $? in
+        0)  # Go is installed and version is OK
+            return
+            ;;
+        1)  # Go is not installed
+            install_needed=true
+            ;;
+        2)  # Go is installed but version is too old
+            if confirm "Go version is too old. Remove and install new version? (Y/n) " "y"; then
+                remove_old_go
+                install_needed=true
+            else
+                error_exit "Go version must be at least $MIN_GO_VERSION"
+            fi
+            ;;
+    esac
+
+    if $install_needed; then
+        echo -e "${YELLOW}Installing Go...${NC}"
+        GO_VERSION="1.24.4"
+        GO_ARCHIVE="go${GO_VERSION}.linux-amd64.tar.gz"
+        TEMP_DIR=$(mktemp -d)
+
+        # Download Go
+        echo -e "${YELLOW}Downloading Go ${GO_VERSION}...${NC}"
+        curl -L "https://go.dev/dl/${GO_ARCHIVE}" -o "$TEMP_DIR/$GO_ARCHIVE" || error_exit "Failed to download Go"
+
+        # Install Go
+        echo -e "${YELLOW}Installing Go to /usr/local...${NC}"
+        sudo tar -C /usr/local -xzf "$TEMP_DIR/$GO_ARCHIVE" || error_exit "Failed to install Go"
+
+        # Add Go to PATH
+        local SHELL_CONFIG=$(get_shell_config)
+        if ! grep -q "/usr/local/go/bin" "$SHELL_CONFIG"; then
+            echo "export PATH=\$PATH:/usr/local/go/bin" >> "$SHELL_CONFIG"
+            NEED_RELOAD=true
+        fi
+
+        # Cleanup
+        rm -rf "$TEMP_DIR"
+
+        # Source the configuration
+        export PATH=$PATH:/usr/local/go/bin
+        source "$SHELL_CONFIG" 2>/dev/null || true
+
+        # Verify installation
+        if ! check_go_installed; then
+            error_exit "Go installation failed"
+        fi
+    fi
 }
 
 function setup_project {
