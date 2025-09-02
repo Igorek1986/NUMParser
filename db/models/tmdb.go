@@ -32,21 +32,22 @@ type Entity struct {
 	Titles              []string             `json:"titles"`
 
 	// tv
-	CreatedBy        []*CreatedBy `json:"created_by"`
-	EpisodeRunTime   []int        `json:"episode_run_time"`
-	FirstAirDate     string       `json:"first_air_date"`
-	InProduction     bool         `json:"in_production"`
-	Languages        []string     `json:"languages"`
-	LastAirDate      string       `json:"last_air_date"`
-	Name             string       `json:"name"`
-	Networks         []*Network   `json:"networks"`
-	NumberOfEpisodes int          `json:"number_of_episodes"`
-	NumberOfSeasons  int          `json:"number_of_seasons"`
-	OriginCountry    []string     `json:"origin_country"`
-	OriginalName     string       `json:"original_name"`
-	Seasons          []*Season    `json:"seasons"`
-	Type             string       `json:"type"`
-	Images           *Images      `json:"images,omitempty"`
+	CreatedBy        []*CreatedBy      `json:"created_by"`
+	EpisodeRunTime   []int             `json:"episode_run_time"`
+	FirstAirDate     string            `json:"first_air_date"`
+	InProduction     bool              `json:"in_production"`
+	Languages        []string          `json:"languages"`
+	LastAirDate      string            `json:"last_air_date"`
+	LastEpisodeToAir *LastEpisodeToAir `json:"last_episode_to_air"`
+	Name             string            `json:"name"`
+	Networks         []*Network        `json:"networks"`
+	NumberOfEpisodes int               `json:"number_of_episodes"`
+	NumberOfSeasons  int               `json:"number_of_seasons"`
+	OriginCountry    []string          `json:"origin_country"`
+	OriginalName     string            `json:"original_name"`
+	Seasons          []*Season         `json:"seasons"`
+	Type             string            `json:"type"`
+	Images           *Images           `json:"images,omitempty"`
 
 	//multi
 	Year         string `json:"year"`
@@ -75,6 +76,22 @@ type Titles struct {
 	Iso31661 string `json:"iso_3166_1"`
 	Title    string `json:"title"`
 	Type     string `json:"type"`
+}
+
+type LastEpisodeToAir struct {
+	Id             int     `json:"id"`
+	Name           string  `json:"name"`
+	Overview       string  `json:"overview"`
+	VoteAverage    float64 `json:"vote_average"`
+	VoteCount      int     `json:"vote_count"`
+	AirDate        string  `json:"air_date"`
+	EpisodeNumber  int     `json:"episode_number"`
+	EpisodeType    string  `json:"episode_type"`
+	ProductionCode string  `json:"production_code"`
+	RunTime        int     `json:"runtime"`
+	SeasonNumber   int     `json:"season_number"`
+	ShowId         int     `json:"show_id"`
+	StillPath      string  `json:"still_path"`
 }
 
 type BelongsToCollection struct {
