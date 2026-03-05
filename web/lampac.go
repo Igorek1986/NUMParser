@@ -41,6 +41,9 @@ var (
 		cartoonSeries    []*models.Entity
 		cartoonSeriesNew []*models.Entity
 		allCartoonSeries []*models.Entity
+		anime            []*models.Entity
+		animeNew         []*models.Entity
+		allAnime         []*models.Entity
 		lastUpdate       time.Time
 	}
 )
@@ -110,7 +113,7 @@ func UpdateMoviesCache() {
 	tvShowNew, tvShow := filterEntitiesByCategory(tvEntities, []string{models.CatSeries}, "notru", 2, 200, "all")
 	cartoonMoviesNew, cartoonMovies := filterEntitiesByCategory(movieEntities, []string{models.CatCartoonMovie}, "all", 2, 200, "all")
 	cartoonSeriesNew, cartoonSeries := filterEntitiesByCategory(tvEntities, []string{models.CatCartoonSeries}, "all", 2, 200, "all")
-	//animeNew, anime := filterEntitiesByCategory(movieEntities, []string{models.CatAnime}, "all", 2, 200, "all")
+	animeNew, anime := filterEntitiesByCategory(tvEntities, []string{models.CatAnime}, "all", 2, 0, "all")
 	movies4kNew, movies4k := filterEntitiesByCategory(movieEntities, []string{models.CatMovie}, "all", 4, 300, "4k")
 	sortEntities := func(entities []*models.Entity) {
 		sort.Slice(entities, func(i, j int) bool {
@@ -175,6 +178,7 @@ func UpdateMoviesCache() {
 	sortEntities(tvShowRuNew)
 	sortEntities(cartoonMoviesNew)
 	sortEntities(cartoonSeriesNew)
+	sortEntities(animeNew)
 
 	// Сортируем все списки по дате релиза
 	sortReleaseDate(movies4k)
@@ -184,6 +188,7 @@ func UpdateMoviesCache() {
 	sortReleaseDate(tvShow)
 	sortReleaseDate(cartoonMovies)
 	sortReleaseDate(cartoonSeries)
+	sortReleaseDate(anime)
 
 	// Объединение списков
 	allTVShows := make([]*models.Entity, 0, len(tvShowNew)+len(tvShow))
@@ -201,6 +206,10 @@ func UpdateMoviesCache() {
 	allCartoonSeries := make([]*models.Entity, 0, len(cartoonSeriesNew)+len(cartoonSeries))
 	allCartoonSeries = append(allCartoonSeries, cartoonSeriesNew...)
 	allCartoonSeries = append(allCartoonSeries, cartoonSeries...)
+
+	allAnime := make([]*models.Entity, 0, len(animeNew)+len(anime))
+	allAnime = append(allAnime, animeNew...)
+	allAnime = append(allAnime, anime...)
 
 	// Сохраняем всё в формате sendMoviesResponse
 	SaveLampacData("movies_ru_new", BuildMoviesResponse(moviesRuNew))
@@ -223,6 +232,7 @@ func UpdateMoviesCache() {
 	SaveLampacData("all_tv_shows_ru", BuildMoviesResponse(allTVShowsRu))
 	SaveLampacData("all_cartoon_movies", BuildMoviesResponse(allCartoonMovies))
 	SaveLampacData("all_cartoon_series", BuildMoviesResponse(allCartoonSeries))
+	SaveLampacData("all_anime", BuildMoviesResponse(allAnime))
 
 	utils.FreeOSMemGC()
 
@@ -249,6 +259,7 @@ func UpdateMoviesCache() {
 	cachedMovies.cartoonSeriesNew = cartoonSeriesNew
 	cachedMovies.cartoonSeries = cartoonSeries
 	cachedMovies.allCartoonSeries = allCartoonSeries
+	cachedMovies.allAnime = allAnime
 	cachedMovies.lastUpdate = time.Now()
 }
 
@@ -272,6 +283,9 @@ type CachedMoviesResponse struct {
 	CartoonSeries    []*models.Entity
 	CartoonSeriesNew []*models.Entity
 	AllCartoonSeries []*models.Entity
+	Anime            []*models.Entity
+	AnimeNew         []*models.Entity
+	AllAnime         []*models.Entity
 	LastUpdate       time.Time
 }
 
@@ -299,6 +313,9 @@ func GetCachedMovies() CachedMoviesResponse {
 		CartoonSeries:    cachedMovies.cartoonSeries,
 		CartoonSeriesNew: cachedMovies.cartoonSeriesNew,
 		AllCartoonSeries: cachedMovies.allCartoonSeries,
+		Anime:            cachedMovies.allAnime,
+		AnimeNew:         cachedMovies.animeNew,
+		AllAnime:         cachedMovies.allAnime,
 		LastUpdate:       cachedMovies.lastUpdate,
 	}
 }
@@ -486,6 +503,25 @@ func InitLampacRoutes(r *gin.RouterGroup) {
 		sendMoviesResponse(c, cached.AllTVShowsRu, page)
 	})
 
+	r.GET("/all_anime", func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept")
+
+		page := getPageParam(c)
+		cached := GetCachedMovies()
+		sendMoviesResponse(c, cached.AllAnime, page)
+	})
+
+}
+
+func getMediaType(category string) string {
+	switch category {
+	case models.CatSeries, models.CatDocSeries, models.CatCartoonSeries, models.CatTVShow, models.CatAnime:
+		return "tv"
+	default:
+		return "movie"
+	}
 }
 
 // Вспомогательная функция отображения качества
@@ -589,6 +625,7 @@ func BuildMoviesResponse(movies []*models.Entity) []map[string]interface{} {
 			"release_quality":     qualityText,
 			"create_date":         torr.CreateDate,
 			"status":              m.Status,
+			"media_type":          getMediaType(torr.Categories),
 		})
 	}
 
@@ -643,6 +680,7 @@ func sendMoviesResponse(c *gin.Context, movies []*models.Entity, page int) {
 			"release_quality":     qualityText,
 			"create_date":         torr.CreateDate,
 			"status":              m.Status,
+			"media_type":          getMediaType(torr.Categories),
 		})
 	}
 
