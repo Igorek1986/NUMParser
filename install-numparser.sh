@@ -269,7 +269,7 @@ function install_movies_api {
     echo -e "${YELLOW}movies-api is not installed. Would you like to install it now?${NC}"
     if confirm "Install movies-api? (Y/n) " "y"; then
         echo -e "${YELLOW}Installing movies-api...${NC}"
-        bash <(curl -fsSL https://raw.githubusercontent.com/Igorek1986/movies-api/main/scripts/install-movies-api.sh) || error_exit "Failed to install movies-api"
+        bash <(curl -fsSL https://raw.githubusercontent.com/Igorek1986/movies-api/main/scripts/install.sh) || error_exit "Failed to install movies-api"
         update_movies_api_config
     fi
 }
